@@ -4,7 +4,7 @@ from torch.autograd import Variable
 import os
 from utils import saveModel,loadModel,chooseData,writeHistory,writeLog, get_parameter_number
 import time
-from backbone.resnet_base import resnet, SE_resnet, CBAM_resnet, FA_resnet
+from backbone.resnet_base import SE_resnet, CBMA_resnet, FA_resnet
 
 class Net(nn.Module):
     def __init__(self, model, CLASS=102):
@@ -313,8 +313,8 @@ def _Cifar_10():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # model = Net(resnet.resnet18(pretrained=False), 10)
     # model = Net(SE_resnet.resnet18(pretrained=False), 10)
-    model = Net(CBAM_resnet.resnet18(pretrained=False), 10)
-    # model = Net(FA_resnet.resnet18(pretrained=False), 10)
+    # model = Net(CBMA_resnet.resnet18(pretrained=False), 10)
+    model = Net(FA_resnet.resnet18(pretrained=False), 10)
 
     all_params = model.parameters()
     attention_params = []
@@ -514,7 +514,7 @@ def _Imagenet_1K():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # model = Net(resnet.resnet18(pretrained=False), 10)
     # model = Net(SE_resnet.resnet18(pretrained=False), 10)
-    model = Net(CBAM_resnet.resnet18(pretrained=False), 1000)
+    model = Net(CBMA_resnet.resnet18(pretrained=False), 1000)
     # model = Net(FA_resnet.resnet18(pretrained=False), 10)
 
     all_params = model.parameters()

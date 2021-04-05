@@ -1,6 +1,6 @@
 import torch.nn as nn
 import numpy as np
-from ..attention_block.SENet import SELayer
+from attention_block.SENet import SELayer
 import torch
 try:
     from torch.hub import load_state_dict_from_url
