@@ -4,7 +4,7 @@ from torch.autograd import Variable
 import os
 from utils import saveModel,loadModel,chooseData,writeHistory,writeLog, get_parameter_number
 import time
-from backbone.resnet_base import SE_resnet, CBMA_resnet, FA_resnet
+from backbone.resnet_base import resnet, SE_resnet, CBMA_resnet, FA_resnet
 
 class Net(nn.Module):
     def __init__(self, model, CLASS=102):
@@ -311,10 +311,10 @@ def _Cifar_10():
     lr = 1e-2
     print("cuda:0")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # model = Net(resnet.resnet18(pretrained=False), 10)
+    model = Net(resnet.resnet18(pretrained=False), 10)
     # model = Net(SE_resnet.resnet18(pretrained=False), 10)
     # model = Net(CBMA_resnet.resnet18(pretrained=False), 10)
-    model = Net(FA_resnet.resnet18(pretrained=False), 10)
+    # model = Net(FA_resnet.resnet18(pretrained=False), 10)
 
     all_params = model.parameters()
     attention_params = []
@@ -407,15 +407,19 @@ def _Cifar_10():
 
 def _Cifar_100():
     """
-     StanfordDogs数据集
+     Cifar-100 数据集
      :return:
      """
-
+    seed = 0
     # 定义模型 定义评价 优化器等
-    lr = 1e-4
-    print("cuda:2")
-    device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
-    model = Net(SE_resnet.resnet18(pretrained=True), 100)
+    torch.cuda.manual_seed(seed)  # 为当前GPU设置随机种子
+    lr = 1e-2
+    print("cuda:0")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # model = Net(resnet.resnet18(pretrained=False), 100)
+    # model = Net(SE_resnet.resnet18(pretrained=False), 100)
+    model = Net(CBMA_resnet.resnet18(pretrained=False), 100)
+    # model = Net(FA_resnet.resnet18(pretrained=False), 100)
 
     all_params = model.parameters()
     attention_params = []
@@ -423,14 +427,14 @@ def _Cifar_100():
     # 根据自己的筛选规则  将所有网络参数进行分组
     for pname, p in model.named_parameters():
         print(pname)
-        if ('seblock' in pname):
+        if ('cbam' in pname):
             attention_params += [p]
             # p.requires_grad = False
-        elif ('fc' in pname and 'Cifar_resnet_base' not in pname):
+        elif ('fc' in pname and 'resnet' not in pname):
             classifier_params += [p]
             # p.requires_grad = False
-        else:
-            p.requires_grad = False
+        # else:
+        #     p.requires_grad = False
         # 取回分组参数的id
 
     print(get_parameter_number(model))
@@ -441,21 +445,22 @@ def _Cifar_100():
 
     model.to(device)
     criterion = torch.nn.CrossEntropyLoss()
+    # optimzer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.90, weight_decay=1e-4)
     optimzer = torch.optim.SGD(
         [
             {'params': backbone_params, 'lr': lr * 1},
-            {'params': attention_params, 'lr': lr * 10},
-            {'params': classifier_params, 'lr': lr * 10},
+            {'params': attention_params, 'lr': lr * 1},
+            {'params': classifier_params, 'lr': lr * 1},
         ],
-        lr=lr, momentum=0.9, weight_decay=0.0001
+        lr=lr, momentum=0.9, weight_decay=1e-4
     )
 
 
-    # torch.optim.lr_scheduler.StepLR(optimzer, 10, gamma=0.94, last_epoch=-1)
+    # torch.optim.lr_scheduler.StepLR(optimzer, 50, gamma=0.1, last_epoch=-1)
     torch.optim.lr_scheduler.CosineAnnealingLR(optimzer, T_max=20)
-    epochs = 200
+    epochs = 250
     batchSize = 256
-    worker = 2
+    worker = 4
     modelConfig = {
         'model':model,
         'criterion':criterion,
@@ -469,13 +474,17 @@ def _Cifar_100():
     # normalize 加快收敛
     # normalize = T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     trainTransforms = T.Compose([
+        T.RandomCrop(32, padding=4),  # 先四周填充0，在吧图像随机裁剪成32*32
+        T.RandomHorizontalFlip(),  # 图像一半的概率翻转，一半的概率不翻转
         T.ToTensor(),
-        T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        T.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),  # R,G,B每层的归一化用到的均值和方差
     ])
 
     testTransforms = T.Compose([
+        # T.Resize(550),
+        # T.CenterCrop(448),
         T.ToTensor(),
-        T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        T.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),  # R,G,B每层的归一化用到的均值和方差
     ])
 
     trainLoader, testLoader, validLoader, trainLength, testLength, validLength = chooseData('CIFAR_100', batchSize,worker, trainTransforms,testTransforms)

@@ -2,17 +2,17 @@
 <project version="4">
   <component name="PublishConfigData" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
-      <paths name="xy_research@183.63.157.140:19422">
+      <paths name="root@hz.matpool.com:28752">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="矩池云">
+      <paths name="xy_research@183.63.157.140:19422">
         <serverdata>
           <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/home/xy_research/CNN_Attention_Block" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

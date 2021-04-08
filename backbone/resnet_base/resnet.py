@@ -2,8 +2,7 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 from typing import Type, Any, Callable, Union, List, Optional
-from attention_block.FANet import FA_Channel_Attention
-from attention_block.FANet import FA_Spatial_Attention
+
 
 try:
     from torch.hub import load_state_dict_from_url
@@ -51,8 +50,8 @@ class BasicBlock(nn.Module):
         groups: int = 1,
         base_width: int = 64,
         dilation: int = 1,
-        k_size: int = 3,
-        norm_layer: Optional[Callable[..., nn.Module]] = None
+        reduction=16,
+        norm_layer: Optional[Callable[..., nn.Module]] = None,
     ) -> None:
         super(BasicBlock, self).__init__()
         if norm_layer is None:
@@ -62,14 +61,11 @@ class BasicBlock(nn.Module):
         if dilation > 1:
             raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
-        c2wh = dict([(64, 56), (128, 28), (256, 14), (512, 7)],)
         self.conv1 = conv3x3(inplanes, planes, stride)
         self.bn1 = norm_layer(planes)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
         self.bn2 = norm_layer(planes)
-        self.fa_ca = FA_Channel_Attention(planes, c2wh[planes], c2wh[planes])
-        self.fa_sa = FA_Spatial_Attention()
         self.downsample = downsample
         self.stride = stride
 
@@ -82,14 +78,6 @@ class BasicBlock(nn.Module):
 
         out = self.conv2(out)
         out = self.bn2(out)
-
-        # 并行
-        out = self.fa_ca(out) * out * self.fa_sa(out)
-
-        # 串行
-        # out = self.fa_ca(out) * out
-        # out = self.fa_sa(out) * out
-
         if self.downsample is not None:
             identity = self.downsample(x)
 
@@ -119,7 +107,6 @@ class Bottleneck(nn.Module):
         base_width: int = 64,
         dilation: int = 1,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
-        k_size: int = 3,
         reduction=16
     ) -> None:
         super(Bottleneck, self).__init__()
@@ -127,7 +114,6 @@ class Bottleneck(nn.Module):
             norm_layer = nn.BatchNorm2d
         width = int(planes * (base_width / 64.)) * groups
         # Both self.conv2 and self.downsample layers downsample the input when stride != 1
-        c2wh = dict([(64, 56), (128, 28), (256, 14), (512, 7)], )
         self.conv1 = conv1x1(inplanes, width)
         self.bn1 = norm_layer(width)
         self.conv2 = conv3x3(width, width, stride, groups, dilation)
@@ -135,8 +121,6 @@ class Bottleneck(nn.Module):
         self.conv3 = conv1x1(width, planes * self.expansion)
         self.bn3 = norm_layer(planes * self.expansion)
         self.relu = nn.ReLU(inplace=True)
-        self.fa_ca = FA_Channel_Attention(planes * self.expansion, c2wh[planes], c2wh[planes], freq_sel_method='top16', k_size=k_size)
-        self.fa_sa = FA_Spatial_Attention()
         self.downsample = downsample
         self.stride = stride
 
@@ -153,13 +137,6 @@ class Bottleneck(nn.Module):
 
         out = self.conv3(out)
         out = self.bn3(out)
-
-        # 并行
-        out = self.fa_ca(out) * out * self.fa_sa(out)
-
-        # 串行
-        # out = self.fa_ca(out) * out
-        # out = self.fa_sa(out) * out
 
         if self.downsample is not None:
             identity = self.downsample(x)
