@@ -146,13 +146,14 @@ class Bottleneck(nn.Module):
         out = self.conv3(out)
         out = self.bn3(out)
 
-        out = self.cbam_ca(out) * out
-        out = self.cbam_sa(out) * out
+        ca = self.cbam_ca(out) * out
+        sa = self.cbam_sa(ca) * ca
 
         if self.downsample is not None:
             identity = self.downsample(x)
 
         out += identity
+        out += sa
         out = self.relu(out)
 
         return out

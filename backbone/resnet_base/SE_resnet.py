@@ -79,11 +79,12 @@ class BasicBlock(nn.Module):
 
         out = self.conv2(out)
         out = self.bn2(out)
-        out = self.seblock(out)
+        se = self.seblock(out)
         if self.downsample is not None:
             identity = self.downsample(x)
 
         out += identity
+        out += se
         out = self.relu(out)
 
         return out

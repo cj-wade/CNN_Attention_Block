@@ -155,7 +155,7 @@ class Bottleneck(nn.Module):
         out = self.bn3(out)
 
         # 并行
-        out = self.fa_ca(out) * out * self.fa_sa(out)
+        fa = self.fa_ca(out) * out * self.fa_sa(out)
 
         # 串行
         # out = self.fa_ca(out) * out
@@ -165,6 +165,7 @@ class Bottleneck(nn.Module):
             identity = self.downsample(x)
 
         out += identity
+        out += fa
         out = self.relu(out)
 
         return out
