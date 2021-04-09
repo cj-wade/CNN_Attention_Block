@@ -83,8 +83,7 @@ class BasicBlock(nn.Module):
         if self.downsample is not None:
             identity = self.downsample(x)
 
-        out += identity
-        out += se
+        out = out + se + identity
         out = self.relu(out)
 
         return out
