@@ -1,18 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData">
     <serverData>
-      <paths name="root@hz.matpool.com:28752">
+      <paths name="root@hz.matpool.com">
         <serverdata>
           <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="xy_research@183.63.157.140:19422">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/home/xy_research/CNN_Attention_Block" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/mnt/CNN_Attention_Block-master" local="$PROJECT_DIR$" />
           </mappings>
         </serverdata>
       </paths>

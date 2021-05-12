@@ -201,7 +201,7 @@ def chooseData(name,batchSize,worker,trainTransforms=None,testTransforms=None):
         testLoader = torch.utils.data.DataLoader(dataTest, batch_size=batchSize,
                                                  shuffle=False, num_workers=2)
 
-    # CIFAR-100
+    # ImageNet-1k
     if name == 'ImageNet-1k':
         from torchvision import datasets
         dataTrain = datasets.ImageNet(root='./datasets', train=True,

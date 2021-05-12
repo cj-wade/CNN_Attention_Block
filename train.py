@@ -2,28 +2,21 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 import os
-from utils import saveModel,loadModel,chooseData,writeHistory,writeLog, get_parameter_number
+from utils import saveModel, loadModel, chooseData, writeHistory, writeLog, get_parameter_number
 import time
 from backbone.resnet_base import resnet, SE_resnet, CBMA_resnet, FA_resnet
+
 
 class Net(nn.Module):
     def __init__(self, model, CLASS=102):
         super(Net, self).__init__()
         # 选择resnet 除最后一层的全连接，改为CLASS输出
         self.resnet = model
-        # self.Cifar_resnet_base = nn.Sequential(*list(model.children())[:-1])
-        # self.Cifar_resnet_base = model
-        # 可以选择冻结卷积层
-        # for p in self.parameters():
-        #     p.requires_grad = False
-        # self.pmg = PMG(model, classes_num=CLASS)
-
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.drop = nn.Dropout(p=0.2)
-        self.fc = nn.Linear(in_features=512, out_features=CLASS)
+        self.fc = nn.Linear(in_features=2048, out_features=CLASS)
 
     def forward(self, x, train_flag='train'):
-        # x = self.pmg(x)
         x = self.resnet(x)
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
@@ -32,7 +25,8 @@ class Net(nn.Module):
         x = self.fc(x)
         return x
 
-def train(modelConfig,dataConfig,logConfig):
+
+def train(modelConfig, dataConfig, logConfig):
     """
     训练
     :param modelConfig: 模型配置
@@ -44,13 +38,13 @@ def train(modelConfig,dataConfig,logConfig):
     model = modelConfig['model']
     criterion = modelConfig['criterion']
     optimzer = modelConfig['optimzer']
-    epochs =  modelConfig['epochs']
+    epochs = modelConfig['epochs']
     device = modelConfig['device']
 
-    #数据加载器
+    # 数据加载器
     trainLoader = dataConfig['trainLoader']
     validLoader = dataConfig['validLoader']
-    trainLength =  dataConfig['trainLength']
+    trainLength = dataConfig['trainLength']
     validLength = dataConfig['validLength']
 
     # 日志及模型保存
@@ -58,7 +52,6 @@ def train(modelConfig,dataConfig,logConfig):
     historyPath = logConfig['historyPath']
     logPath = logConfig['logPath']
     lastModelPath = logConfig['lastModelPath']
-
 
     trainLosses = []
     trainAcces = []
@@ -74,11 +67,11 @@ def train(modelConfig,dataConfig,logConfig):
         print("Epoch{}/{}".format(epoch, epochs))
         print("-" * 10)
 
-        trainLoss, trainAcc = oneEpoch_train(model,trainLoader,optimzer,criterion,device)
-        validLoss, validAcc = oneEpoch_valid(model,validLoader,criterion,device)
+        trainLoss, trainAcc = oneEpoch_train(model, trainLoader, optimzer, criterion, device)
+        validLoss, validAcc = oneEpoch_valid(model, validLoader, criterion, device)
 
         trainLoss = trainLoss / len(trainLoader)
-        trainAcc =  trainAcc / trainLength
+        trainAcc = trainAcc / trainLength
         validLoss = validLoss / len(validLoader)
         validAcc = validAcc / validLength
 
@@ -113,14 +106,14 @@ def train(modelConfig,dataConfig,logConfig):
         #     'validAcces':validAcces
         # }
 
-        writeLog(logPath,log)
+        # writeLog(logPath, log)
         # writeHistory(historyPath,history)
 
         # 保存最新一次模型
         # saveModel(model,lastModelPath)
 
 
-def oneEpoch_train(model,dataLoader,optimzer,criterion,device):
+def oneEpoch_train(model, dataLoader, optimzer, criterion, device):
     """
     训练一次 或者 验证/测试一次
     :param model: 模型
@@ -153,9 +146,10 @@ def oneEpoch_train(model,dataLoader,optimzer,criterion,device):
         loss += _loss.item()
         acc += torch.sum(preds == labels).item()
 
-    return loss,acc
+    return loss, acc
 
-def oneEpoch_valid(model,dataLoader,criterion,device):
+
+def oneEpoch_valid(model, dataLoader, criterion, device):
     """
     训练一次 或者 验证/测试一次
     :param model: 模型
@@ -173,12 +167,11 @@ def oneEpoch_valid(model,dataLoader,criterion,device):
             outputs = model(inputs, train_flag="val")
             _loss = criterion(outputs, labels)
 
-
             _, preds = torch.max(outputs.data, 1)
             loss += _loss.item()
             acc += torch.sum(preds == labels).item()
 
-    return loss,acc
+    return loss, acc
 
 
 def _stanfordDogs():
@@ -189,8 +182,8 @@ def _stanfordDogs():
 
     # 定义模型 定义评价 优化器等
     lr = 1e-4
-    print("cuda:3")
-    device = torch.device("cuda:3" if torch.cuda.is_available() else "cpu")
+    print("cuda:0")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = Net(SE_resnet.resnet50(pretrained=True), 120)
 
     all_params = model.parameters()
@@ -235,23 +228,22 @@ def _stanfordDogs():
         [
             {'params': backbone_params, 'lr': lr * 1},
             {'params': attention_params, 'lr': lr * 10},
-            {'params': classifier_params, 'lr': lr * 10},
+            {'params': classifier_params, 'lr': lr * 1},
         ],
         lr=lr, momentum=0.9, weight_decay=0.0001
     )
 
-
     # torch.optim.lr_scheduler.StepLR(optimzer, 10, gamma=0.94, last_epoch=-1)
     torch.optim.lr_scheduler.CosineAnnealingLR(optimzer, T_max=10)
     epochs = 150
-    batchSize = 64
+    batchSize = 16
     worker = 2
     modelConfig = {
-        'model':model,
-        'criterion':criterion,
-        'optimzer':optimzer,
-        'epochs':epochs,
-        'device':device
+        'model': model,
+        'criterion': criterion,
+        'optimzer': optimzer,
+        'epochs': epochs,
+        'device': device
     }
 
     from torchvision import transforms as T
@@ -275,12 +267,13 @@ def _stanfordDogs():
         T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ])
 
-    # trainLoader, testLoader, validLoader, trainLength, testLength, validLength = chooseData('STANFORDDOGS', batchSize,worker, trainTransforms,testTransforms)
+    trainLoader, testLoader, validLoader, trainLength, testLength, validLength = chooseData('STANFORDDOGS', batchSize,worker, trainTransforms,testTransforms)
 
-    trainLoader, testLoader, validLoader, trainLength, testLength, validLength = chooseData('STANFORDDOGS', batchSize,worker)
+    # trainLoader, testLoader, validLoader, trainLength, testLength, validLength = chooseData('STANFORDDOGS', batchSize,
+    #                                                                                         worker)
     # 没有验证集，所以使用测试集来做验证集
     dataConfig = {
-        'trainLoader':trainLoader,
+        'trainLoader': trainLoader,
         'validLoader': testLoader,
         'trainLength': trainLength,
         'validLength': testLength
@@ -293,12 +286,256 @@ def _stanfordDogs():
 
     logConfig = {
         'modelPath': modelPath,
-        'historyPath':historyPath,
-        'logPath':logPath,
-        'lastModelPath':lastModelPath
+        'historyPath': historyPath,
+        'logPath': logPath,
+        'lastModelPath': lastModelPath
     }
 
-    train(modelConfig,dataConfig,logConfig)
+    train(modelConfig, dataConfig, logConfig)
+
+def _stanfordCars():
+    """
+     StanfordCars数据集
+     :return:
+     """
+
+    # 定义模型 定义评价 优化器等
+    lr = 1e-4
+    print("cuda:0")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model = Net(resnet.resnet50(pretrained=True), 196)
+    # model = Net(SE_resnet.resnet50(pretrained=True), 196)
+    # model = Net(CBMA_resnet.resnet50(pretrained=True), 196)
+    # model = Net(FA_resnet.resnet50(pretrained=True), 196)
+
+
+
+
+    all_params = model.parameters()
+    attention_params = []
+    classifier_params = []
+    # 根据自己的筛选规则  将所有网络参数进行分组
+    for pname, p in model.named_parameters():
+        print(pname)
+        # if any([pname.endswith(k) for k in ['seblock']]):
+        #     attention_params += [p]
+        if ('seblock' in pname):
+            attention_params += [p]
+            # p.requires_grad = False
+        elif ('fc' in pname and 'Cifar_resnet_base' not in pname):
+            classifier_params += [p]
+            # p.requires_grad = False
+        else:
+            p.requires_grad = False
+        # 取回分组参数的id
+
+    print(get_parameter_number(model))
+
+    # print("attention:")
+    # for i in attention_params:
+    #     print(i.size())
+    # print("classfier")
+    # for i in classifier_params:
+    #     print(i.size())
+    params_id = list(map(id, attention_params)) + list(map(id, classifier_params))
+    # 取回剩余分特殊处置参数的id
+    backbone_params = list(filter(lambda p: id(p) not in params_id, all_params))
+
+    model.to(device)
+    criterion = torch.nn.CrossEntropyLoss()
+    # optimzer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9, weight_decay=0.0001)
+    # backbone_params = model.children()[:-3].parameters()
+    # attention_classfication_params = model.children()[-3:].parameters()
+    # backbone_params = list(map(id, model.Cifar_resnet_base.parameters()))
+    # attention_classfication_params = filter(lambda p: id(p) not in backbone_params, model.parameters())
+
+    optimzer = torch.optim.SGD(
+        [
+            {'params': backbone_params, 'lr': lr * 1},
+            {'params': attention_params, 'lr': lr * 10},
+            {'params': classifier_params, 'lr': lr * 1},
+        ],
+        lr=lr, momentum=0.9, weight_decay=0.0001
+    )
+
+    # torch.optim.lr_scheduler.StepLR(optimzer, 10, gamma=0.94, last_epoch=-1)
+    torch.optim.lr_scheduler.CosineAnnealingLR(optimzer, T_max=10)
+    epochs = 150
+    batchSize = 64
+    worker = 2
+    modelConfig = {
+        'model': model,
+        'criterion': criterion,
+        'optimzer': optimzer,
+        'epochs': epochs,
+        'device': device
+    }
+
+    from torchvision import transforms as T
+    # 自定义数据增强方式
+    # normalize 加快收敛
+    # normalize = T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    trainTransforms = T.Compose([
+        # T.Scale((550, 550)),
+        T.Resize(256),
+        T.RandomCrop(224),
+        T.ToTensor(),
+        T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    ])
+
+    testTransforms = T.Compose([
+        # T.Scale((550, 550)),
+        T.Resize(256),
+        # T.RandomCrop(224),
+        T.CenterCrop(224),
+        T.ToTensor(),
+        T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    ])
+
+    trainLoader, testLoader, validLoader, trainLength, testLength, validLength = chooseData('STANFORDCARS', batchSize,worker, trainTransforms,testTransforms)
+
+    # trainLoader, testLoader, validLoader, trainLength, testLength, validLength = chooseData('STANFORDCARS', batchSize,
+    #                                                                                         worker)
+    # 没有验证集，所以使用测试集来做验证集
+    dataConfig = {
+        'trainLoader': trainLoader,
+        'validLoader': testLoader,
+        'trainLength': trainLength,
+        'validLength': testLength
+    }
+
+    modelPath = os.path.join(os.getcwd(), 'checkpoints', '_stanfordcars.pth')
+    lastModelPath = os.path.join(os.getcwd(), 'checkpoints', '_stanfordcars_last.pth')
+    historyPath = os.path.join(os.getcwd(), 'historys', '_stanfordcars.npy')
+    logPath = os.path.join(os.getcwd(), 'logs', '_stanfordcars.txt')
+
+    logConfig = {
+        'modelPath': modelPath,
+        'historyPath': historyPath,
+        'logPath': logPath,
+        'lastModelPath': lastModelPath
+    }
+
+    train(modelConfig, dataConfig, logConfig)
+
+def _CUB200():
+    """
+    CUB200数据集
+    :return:
+    """
+
+    # 定义模型 定义评价 优化器等
+    lr = 1e-4
+    print("cuda:0")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # model = Net(SE_resnet.resnet50(pretrained=True), 200)
+    # model = Net(CBMA_resnet.resnet50(pretrained=True), 200)
+    model = Net(FA_resnet.resnet50(pretrained=True), 200)
+
+    all_params = model.parameters()
+    attention_params = []
+    classifier_params = []
+    # 根据自己的筛选规则  将所有网络参数进行分组
+    for pname, p in model.named_parameters():
+        print(pname)
+        # if any([pname.endswith(k) for k in ['seblock']]):
+        #     attention_params += [p]
+        if ('seblock' in pname):
+            attention_params += [p]
+            # p.requires_grad = False
+        elif ('fc' in pname and 'Cifar_resnet_base' not in pname):
+            classifier_params += [p]
+            # p.requires_grad = False
+        else:
+            p.requires_grad = False
+        # 取回分组参数的id
+
+    print(get_parameter_number(model))
+
+    # print("attention:")
+    # for i in attention_params:
+    #     print(i.size())
+    # print("classfier")
+    # for i in classifier_params:
+    #     print(i.size())
+    params_id = list(map(id, attention_params)) + list(map(id, classifier_params))
+    # 取回剩余分特殊处置参数的id
+    backbone_params = list(filter(lambda p: id(p) not in params_id, all_params))
+
+    model.to(device)
+    criterion = torch.nn.CrossEntropyLoss()
+    # optimzer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9, weight_decay=0.0001)
+    # backbone_params = model.children()[:-3].parameters()
+    # attention_classfication_params = model.children()[-3:].parameters()
+    # backbone_params = list(map(id, model.Cifar_resnet_base.parameters()))
+    # attention_classfication_params = filter(lambda p: id(p) not in backbone_params, model.parameters())
+
+    optimzer = torch.optim.SGD(
+        [
+            {'params': backbone_params, 'lr': lr * 1},
+            {'params': attention_params, 'lr': lr * 10},
+            {'params': classifier_params, 'lr': lr * 1},
+        ],
+        lr=lr, momentum=0.9, weight_decay=0.0001
+    )
+
+    # torch.optim.lr_scheduler.StepLR(optimzer, 10, gamma=0.94, last_epoch=-1)
+    torch.optim.lr_scheduler.CosineAnnealingLR(optimzer, T_max=10)
+    epochs = 150
+    batchSize = 16
+    worker = 2
+    modelConfig = {
+        'model': model,
+        'criterion': criterion,
+        'optimzer': optimzer,
+        'epochs': epochs,
+        'device': device
+    }
+
+    from torchvision import transforms as T
+    # 自定义数据增强方式
+    # normalize 加快收敛
+    # normalize = T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    trainTransforms = T.Compose([
+        # T.Scale((550, 550)),
+        T.Resize(256),
+        T.RandomCrop(224),
+        T.ToTensor(),
+        T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    ])
+
+    testTransforms = T.Compose([
+        # T.Scale((550, 550)),
+        T.Resize(256),
+        # T.RandomCrop(224),
+        T.CenterCrop(224),
+        T.ToTensor(),
+        T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    ])
+
+    trainLoader, testLoader, validLoader, trainLength, testLength, validLength = chooseData('CUB200', batchSize,worker, trainTransforms,testTransforms)
+
+    # 没有验证集，所以使用测试集来做验证集
+    dataConfig = {
+        'trainLoader': trainLoader,
+        'validLoader': testLoader,
+        'trainLength': trainLength,
+        'validLength': testLength
+    }
+
+    modelPath = os.path.join(os.getcwd(), 'checkpoints', '_CUB200.pth')
+    lastModelPath = os.path.join(os.getcwd(), 'checkpoints', '_CUB200_last.pth')
+    historyPath = os.path.join(os.getcwd(), 'historys', '_CUB200.npy')
+    logPath = os.path.join(os.getcwd(), 'logs', '_CUB200.txt')
+
+    logConfig = {
+        'modelPath': modelPath,
+        'historyPath': historyPath,
+        'logPath': logPath,
+        'lastModelPath': lastModelPath
+    }
+
+    train(modelConfig, dataConfig, logConfig)
 
 def _Cifar_10():
     """
@@ -311,10 +548,10 @@ def _Cifar_10():
     lr = 1e-2
     print("cuda:0")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = Net(resnet.resnet18(pretrained=False), 10)
+    # model = Net(resnet.resnet18(pretrained=False), 10)
     # model = Net(SE_resnet.resnet18(pretrained=False), 10)
-    # model = Net(CBMA_resnet.resnet18(pretrained=False), 10)
-    # model = Net(FA_resnet.resnet18(pretrained=False), 10)
+    #model = Net(CBMA_resnet.resnet18(pretrained=False), 10)
+    model = Net(FA_resnet.resnet18(pretrained=False), 10)
 
     all_params = model.parameters()
     attention_params = []
@@ -350,18 +587,17 @@ def _Cifar_10():
         lr=lr, momentum=0.9, weight_decay=1e-4
     )
 
-
-    # torch.optim.lr_scheduler.StepLR(optimzer, 50, gamma=0.1, last_epoch=-1)
-    torch.optim.lr_scheduler.CosineAnnealingLR(optimzer, T_max=20)
+    torch.optim.lr_scheduler.StepLR(optimzer, 5, gamma=0.94, last_epoch=-1)
+    # torch.optim.lr_scheduler.CosineAnnealingLR(optimzer, T_max=20)
     epochs = 250
     batchSize = 256
     worker = 4
     modelConfig = {
-        'model':model,
-        'criterion':criterion,
-        'optimzer':optimzer,
-        'epochs':epochs,
-        'device':device
+        'model': model,
+        'criterion': criterion,
+        'optimzer': optimzer,
+        'epochs': epochs,
+        'device': device
     }
 
     from torchvision import transforms as T
@@ -382,10 +618,13 @@ def _Cifar_10():
         T.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),  # R,G,B每层的归一化用到的均值和方差
     ])
 
-    trainLoader, testLoader, validLoader, trainLength, testLength, validLength = chooseData('CIFAR_10', batchSize,worker, trainTransforms,testTransforms)
+    # 加载数据集
+    trainLoader, testLoader, validLoader, trainLength, testLength, validLength = chooseData('CIFAR_10', batchSize,
+                                                                                            worker, trainTransforms,
+                                                                                            testTransforms)
     # 没有验证集，所以使用测试集来做验证集
     dataConfig = {
-        'trainLoader':trainLoader,
+        'trainLoader': trainLoader,
         'validLoader': testLoader,
         'trainLength': trainLength,
         'validLength': testLength
@@ -398,12 +637,14 @@ def _Cifar_10():
 
     logConfig = {
         'modelPath': modelPath,
-        'historyPath':historyPath,
-        'logPath':logPath,
-        'lastModelPath':lastModelPath
+        'historyPath': historyPath,
+        'logPath': logPath,
+        'lastModelPath': lastModelPath
     }
 
-    train(modelConfig,dataConfig,logConfig)
+    # 训练（包含一次训练和验证）
+    train(modelConfig, dataConfig, logConfig)
+
 
 def _Cifar_100():
     """
@@ -455,18 +696,17 @@ def _Cifar_100():
         lr=lr, momentum=0.9, weight_decay=1e-4
     )
 
-
     # torch.optim.lr_scheduler.StepLR(optimzer, 50, gamma=0.1, last_epoch=-1)
     torch.optim.lr_scheduler.CosineAnnealingLR(optimzer, T_max=20)
     epochs = 250
     batchSize = 256
     worker = 4
     modelConfig = {
-        'model':model,
-        'criterion':criterion,
-        'optimzer':optimzer,
-        'epochs':epochs,
-        'device':device
+        'model': model,
+        'criterion': criterion,
+        'optimzer': optimzer,
+        'epochs': epochs,
+        'device': device
     }
 
     from torchvision import transforms as T
@@ -487,10 +727,12 @@ def _Cifar_100():
         T.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),  # R,G,B每层的归一化用到的均值和方差
     ])
 
-    trainLoader, testLoader, validLoader, trainLength, testLength, validLength = chooseData('CIFAR_100', batchSize,worker, trainTransforms,testTransforms)
+    trainLoader, testLoader, validLoader, trainLength, testLength, validLength = chooseData('CIFAR_100', batchSize,
+                                                                                            worker, trainTransforms,
+                                                                                            testTransforms)
     # 没有验证集，所以使用测试集来做验证集
     dataConfig = {
-        'trainLoader':trainLoader,
+        'trainLoader': trainLoader,
         'validLoader': testLoader,
         'trainLength': trainLength,
         'validLength': testLength
@@ -503,12 +745,13 @@ def _Cifar_100():
 
     logConfig = {
         'modelPath': modelPath,
-        'historyPath':historyPath,
-        'logPath':logPath,
-        'lastModelPath':lastModelPath
+        'historyPath': historyPath,
+        'logPath': logPath,
+        'lastModelPath': lastModelPath
     }
 
-    train(modelConfig,dataConfig,logConfig)
+    train(modelConfig, dataConfig, logConfig)
+
 
 def _Imagenet_1K():
     """
@@ -560,18 +803,17 @@ def _Imagenet_1K():
         lr=lr, momentum=0.9, weight_decay=1e-4
     )
 
-
     # torch.optim.lr_scheduler.StepLR(optimzer, 50, gamma=0.1, last_epoch=-1)
     torch.optim.lr_scheduler.CosineAnnealingLR(optimzer, T_max=20)
     epochs = 250
     batchSize = 256
     worker = 4
     modelConfig = {
-        'model':model,
-        'criterion':criterion,
-        'optimzer':optimzer,
-        'epochs':epochs,
-        'device':device
+        'model': model,
+        'criterion': criterion,
+        'optimzer': optimzer,
+        'epochs': epochs,
+        'device': device
     }
 
     from torchvision import transforms as T
@@ -594,33 +836,38 @@ def _Imagenet_1K():
         normalize
     ])
 
-    trainLoader, testLoader, validLoader, trainLength, testLength, validLength = chooseData('ImageNet-1k', batchSize,worker, trainTransforms,testTransforms)
+    trainLoader, testLoader, validLoader, trainLength, testLength, validLength = chooseData('ImageNet-1k', batchSize,
+                                                                                            worker, trainTransforms,
+                                                                                            testTransforms)
     # 没有验证集，所以使用测试集来做验证集
     dataConfig = {
-        'trainLoader':trainLoader,
+        'trainLoader': trainLoader,
         'validLoader': testLoader,
         'trainLength': trainLength,
         'validLength': testLength
     }
 
-    modelPath = os.path.join(os.getcwd(), 'checkpoints', '_ImageNet-1k.pth')
+    modelPath = os.path.join(os.getcwd(),  'checkpoints', '_ImageNet-1k.pth')
     lastModelPath = os.path.join(os.getcwd(), 'checkpoints', '_ImageNet-1k_last.pth')
     historyPath = os.path.join(os.getcwd(), 'historys', '_ImageNet-1k.npy')
     logPath = os.path.join(os.getcwd(), 'logs', '_ImageNet-1k.txt')
 
     logConfig = {
         'modelPath': modelPath,
-        'historyPath':historyPath,
-        'logPath':logPath,
-        'lastModelPath':lastModelPath
+        'historyPath': historyPath,
+        'logPath': logPath,
+        'lastModelPath': lastModelPath
     }
 
-    train(modelConfig,dataConfig,logConfig)
+    train(modelConfig, dataConfig, logConfig)
+
 
 if __name__ == '__main__':
     print(torch.__version__)
     # _stanfordDogs()
-    _Cifar_10()
+    _stanfordCars()
+    # _CUB200()
+    # _Cifar_10()
     # _Cifar_100()
     # _Imagenet_1K()
 
